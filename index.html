@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Endless Breakout - Web</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #1a1a1a;
+            font-family: Arial, sans-serif;
+            color: white;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 800px; /* Max width for larger screens */
+            margin: auto;
+            position: relative; /* Needed for absolute positioning of UI */
+        }
+
+        #gameCanvas {
+            background-color: #000;
+            display: block;
+            /* Width and height set by JS, aspect ratio maintained */
+            max-width: 100%;
+            /* max-height calculated in JS */
+            border: 2px solid #444;
+            box-sizing: border-box; /* Include border in size */
+        }
+
+         #controls {
+            display: flex;
+            justify-content: space-between; /* Space out buttons */
+            width: 80%; /* Width relative to container */
+            max-width: 400px; /* Max width for controls */
+            margin-top: 15px;
+            user-select: none; /* Prevent text selection on buttons */
+            -webkit-user-select: none; /* Safari */
+            -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* IE */
+        }
+
+        .control-button {
+            background-color: #444;
+            color: white;
+            border: 2px solid #666;
+            border-radius: 10px;
+            padding: 15px 25px; /* Generous padding for touch */
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+            flex-grow: 1; /* Allow buttons to grow */
+            margin: 0 10px; /* Spacing between buttons */
+            transition: background-color 0.1s ease;
+            -webkit-tap-highlight-color: transparent; /* Remove blue tap highlight */
+        }
+
+        .control-button:active, .control-button.active {
+             background-color: #666; /* Feedback on press */
+        }
+
+        /* UI Info positioned relative to game-container */
+        #ui-info {
+            display: flex;
+            justify-content: space-between;
+            width: 100%; /* Takes width of game-container */
+            padding: 5px 10px;
+            box-sizing: border-box;
+            font-size: 16px; /* Base size, might adjust dynamically */
+            position: absolute; /* Position over canvas */
+            top: 10px; /* Adjust as needed */
+            left: 0;
+            pointer-events: none; /* Don't interfere with game input */
+            z-index: 5; /* Above canvas, below overlays */
+        }
+         #ui-info span {
+             background-color: rgba(0,0,0,0.6);
+             padding: 4px 8px;
+             border-radius: 4px;
+             margin: 0 5px; /* Add some spacing */
+         }
+         /* Specific positioning for UI elements */
+         #score { order: 1; margin-left: auto; } /* Push score right */
+         #level { order: 2; }
+         #lives { order: 3; margin-right: auto;} /* Push lives left */
+
+
+         /* Style for messages (Game Over, Paused) */
+        .message-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%; /* Cover game-container */
+            height: 100%; /* Cover game-container */
+            background-color: rgba(0, 0, 0, 0.75);
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            z-index: 10; /* Ensure it's on top */
+            font-size: 1.5em; /* Relative font size */
+            box-sizing: border-box;
+            padding: 20px;
+        }
+        .message-overlay h2 {
+            margin-bottom: 15px;
+        }
+        .message-overlay p {
+            font-size: 0.7em;
+            margin-top: 10px;
+            line-height: 1.4;
+        }
+
+
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="ui-info">
+             <span id="lives">Lives: 3</span>
+             <span id="level">Level: 0</span>
+             <span id="score">Score: 0</span>
+             </div>
+
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="controls">
+            <div class="control-button" id="leftArrow">&lt;</div>
+            <div class="control-button" id="pauseButton">P</div>
+            <div class="control-button" id="shootButton" style="display: none;">FIRE</div>
+            <div class="control-button" id="rightArrow">&gt;</div>
+        </div>
+
+        <div id="pauseOverlay" class="message-overlay">
+            <h2>PAUSED</h2>
+            <p>Tap Pause Button or Press P to Resume</p>
+            <p>(Q to Quit - Keyboard Only)</p>
+        </div>
+         <div id="gameOverOverlay" class="message-overlay">
+            <h2>GAME OVER!</h2>
+            <p id="finalScore">Final Score: 0</p>
+            <p>Tap Screen or Press Key to Restart</p>
+        </div>
+         <div id="lifeLostOverlay" class="message-overlay">
+            <h2 id="lifeLostMessage">Life Lost! X left.</h2>
+            <p>Tap Screen or Press Key to Continue</p>
+        </div>
+    </div>
+
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score');
+        const levelDisplay = document.getElementById('level');
+        const livesDisplay = document.getElementById('lives');
+        const leftButton = document.getElementById('leftArrow');
+        const rightButton = document.getElementById('rightArrow');
+        const pauseButton = document.getElementById('pauseButton');
+        const shootButton = document.getElementById('shootButton');
+        const pauseOverlay = document.getElementById('pauseOverlay');
+        const gameOverOverlay = document.getElementById('gameOverOverlay');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        const lifeLostOverlay = document.getElementById('lifeLostOverlay');
+        const lifeLostMessage = document.getElementById('lifeLostMessage');
+        // const comboDisplay = document.getElementById('comboDisplay'); // Uncomment if using
+        // const powerupIndicator = document.getElementById('powerupIndicator'); // Uncomment if using
+
+        // --- Game State ---
+        let score = 0;
+        let lives = 3;
+        let gameLevel = 0;
+        let gameOver = false;
+        let paused = false;
+        let pausedAfterLifeLoss = false;
+        let animationFrameId = null; // To control the game loop
+
+        // --- Dynamic Sizing ---
+        const BASE_WIDTH = 800; // Reference width for scaling calculations
+        const BASE_HEIGHT = 600; // Reference height
+        let scaleFactor = 1;
+        let canvasWidth = BASE_WIDTH;
+        let canvasHeight = BASE_HEIGHT;
+
+        // --- Game Element Properties (Scaled) ---
+        let paddle = { x: 0, y: 0, width: 100, baseWidth: 100, widerWidth: 140, height: 15, speed: 8, dx: 0, isWider: false, widerEndTime: 0, hasLaser: false, laserEndTime: 0 };
+        let balls = []; // Array holds all active balls { x, y, radius, dx, dy, baseSpeedX, baseSpeedY, speedMultiplier }
+        let bricks = []; // Array holds all bricks { x, y, width, height, visible, maxHits, hitsLeft, isBomb }
+        let powerups = []; // Array holds falling powerups { x, y, size, speed, type, visible }
+        let lasers = []; // Array holds active lasers { x, y, width, height, speed, visible }
+
+        // --- Constants (Base values, scaled later) ---
+        const PADDLE_BASE_WIDTH = 100;
+        const PADDLE_WIDER_WIDTH = 140;
+        const PADDLE_HEIGHT = 15;
+        const PADDLE_Y_OFFSET = 20; // Offset from bottom
+        const PADDLE_SPEED = 10;
+        const BALL_RADIUS = 8;
+        const BALL_BASE_SPEED_X = 4.5;
+        const BALL_BASE_SPEED_Y = -4.5; // Negative for up
+
+        const BRICK_COLS = 10;
+        const BRICK_BASE_HEIGHT = 20;
+        const BRICK_SPACING_FACTOR = 0.05; // Spacing relative to brick width
+        const BRICK_TOP_OFFSET = 60;
+        let BRICK_ROWS_VISIBLE = 12; // Max rows fitting on screen approx (recalculated)
+        let brickWidth, brickHeight, brickSpacing, brickOffsetY, brickStartX; // Calculated dynamically
+
+        const INITIAL_BRICK_ROWS = 5;
+        const GAME_OVER_LINE_Y_FACTOR = 0.9; // Bricks below 90% of height = game over
+        let gameOverLineY;
+
+        // Difficulty/Endless
+        const BRICK_SHIFT_INTERVAL_INITIAL = 12000;
+        const BRICK_SHIFT_INTERVAL_MIN = 3500;
+        let brickShiftAmount; // Calculated
+        let currentBrickShiftInterval = BRICK_SHIFT_INTERVAL_INITIAL;
+        let lastBrickShiftTime = 0;
+        const DIFFICULTY_SCORE_INTERVAL = 350;
+        const MAX_SPEED_MULTIPLIER = 3.0;
+        const MAX_BRICK_HITS = 5;
+        const DIFFICULTY_SCALING_LEVEL_CAP = 15.0;
+
+        // Powerups / Laser / Bomb
+        const POWERUP_CHANCE = 0.18;
+        const POWERUP_SPEED_FACTOR = 0.005; // Speed relative to height
+        const POWERUP_SIZE_FACTOR = 0.03; // Size relative to width
+        let powerupSpeed, powerupSize;
+        const POWERUP_DURATION = 7000;
+        const LASER_DURATION = 5000;
+        const LASER_COOLDOWN = 250;
+        const LASER_SPEED_FACTOR = 0.015;
+        const LASER_WIDTH_FACTOR = 0.005;
+        const LASER_HEIGHT_FACTOR = 0.02;
+        let laserSpeed, laserWidth, laserHeight;
+        let lastLaserShotTime = 0;
+        const BOMB_BRICK_CHANCE = 0.05;
+        const BOMB_RADIUS_FACTOR = 1.5; // Explosion radius in brick widths
+
+        // Combo
+        const COMBO_RESET_ON_PADDLE = true;
+        const COMBO_MULTIPLIER_INCREMENT = 0.1;
+        let comboCount = 0;
+        let currentComboMultiplier = 1.0;
+        let activePowerupType = null;
+        let activePowerupTimer = 0;
+
+        // Colors (Using CSS variables might be better, but keep simple for now)
+        const PADDLE_COLOR = '#3C3CC8'; // Blueish
+        const BALL_COLOR = '#FFFFFF'; // White
+        const BRICK_COLORS = { 1: '#67BBDE', 2: '#323296', 3: '#88D498', 4: '#F29D52', 5: '#D95763', 6: '#8B0000' }; // Blue, DBlue, Green, Orange, Red, DRed
+        const BOMB_COLOR = '#808080'; // Grey
+        const LASER_COLOR = '#00FFFF'; // Cyan
+        const POWERUP_COLORS = { WIDER: '#88D498', MULTI_BALL: '#9664C8', LASER: '#F29D52' }; // Green, Purple, Orange
+
+        // --- Input State ---
+        let rightPressed = false;
+        let leftPressed = false;
+        // shootPressed flag not needed, fire on event
+
+        // --- Utility Functions ---
+        function scaleValue(baseValue) {
+            // Scales a value based on the reference BASE_WIDTH
+            return baseValue * scaleFactor;
+        }
+
+        // --- Game Initialization and Resizing ---
+        function calculateSizes() {
+            const controls = document.getElementById('controls');
+            const controlsHeight = controls ? controls.offsetHeight + 30 : 50; // Approx height + margin, fallback
+            const availableHeight = window.innerHeight - controlsHeight;
+            const availableWidth = gameContainer.clientWidth;
+
+            const windowRatio = availableWidth / availableHeight;
+            const baseRatio = BASE_WIDTH / BASE_HEIGHT;
+
+            if (windowRatio > baseRatio) {
+                canvasHeight = availableHeight;
+                canvasWidth = canvasHeight * baseRatio;
+            } else {
+                canvasWidth = availableWidth;
+                canvasHeight = canvasWidth / baseRatio;
+            }
+
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            scaleFactor = canvasWidth / BASE_WIDTH; // Base scaling on width
+
+            console.log(`Resized: Canvas ${canvasWidth.toFixed(0)}x${canvasHeight.toFixed(0)}, Scale: ${scaleFactor.toFixed(2)}`);
+
+            // Scale game elements
+            paddle.height = scaleValue(PADDLE_HEIGHT);
+            paddle.baseWidth = scaleValue(PADDLE_BASE_WIDTH);
+            paddle.widerWidth = scaleValue(PADDLE_WIDER_WIDTH);
+            paddle.width = paddle.isWider ? paddle.widerWidth : paddle.baseWidth;
+            paddle.y = canvasHeight - paddle.height - scaleValue(PADDLE_Y_OFFSET);
+            paddle.speed = scaleValue(PADDLE_SPEED);
+
+            balls.forEach(b => { // Scale existing balls radius
+                 b.radius = scaleValue(BALL_RADIUS);
+             });
+
+            brickHeight = scaleValue(BRICK_BASE_HEIGHT);
+            // Calculate width based on cols and spacing factor relative to width
+            const totalSpacing = (BRICK_COLS + 1) * (canvasWidth / BRICK_COLS * BRICK_SPACING_FACTOR); // Total spacing approx
+            brickWidth = (canvasWidth - totalSpacing) / BRICK_COLS;
+            brickSpacing = (canvasWidth - (BRICK_COLS * brickWidth)) / (BRICK_COLS + 1); // Recalculate spacing to fit exactly
+            brickOffsetY = scaleValue(BRICK_TOP_OFFSET);
+            brickStartX = brickSpacing; // Start after first spacing
+            brickShiftAmount = brickHeight + brickSpacing;
+            BRICK_ROWS_VISIBLE = Math.floor((canvasHeight * GAME_OVER_LINE_Y_FACTOR - brickOffsetY) / (brickHeight + brickSpacing));
+
+            gameOverLineY = canvasHeight * GAME_OVER_LINE_Y_FACTOR;
+
+            powerupSpeed = canvasHeight * POWERUP_SPEED_FACTOR;
+            powerupSize = canvasWidth * POWERUP_SIZE_FACTOR;
+
+            laserSpeed = canvasHeight * LASER_SPEED_FACTOR;
+            laserWidth = canvasWidth * LASER_WIDTH_FACTOR;
+            laserHeight = canvasHeight * LASER_HEIGHT_FACTOR;
+
+            // Adjust font sizes for UI overlay
+             const baseFontSize = 16;
+             const scaledFontSize = Math.max(10, Math.min(20, baseFontSize * scaleFactor * 1.1)); // Clamp font size
+             const uiSpans = document.querySelectorAll('#ui-info span');
+             uiSpans.forEach(span => span.style.fontSize = `${scaledFontSize}px`);
+
+             // Scale message overlay text
+             const overlayBaseSize = 1.5; // em
+             const scaledOverlaySize = Math.max(1, overlayBaseSize * scaleFactor);
+             document.querySelectorAll('.message-overlay').forEach(overlay => {
+                 overlay.style.fontSize = `${scaledOverlaySize}em`;
+             });
+
+            // Recalculate positions
+            paddle.x = (canvasWidth - paddle.width) / 2; // Recenter paddle
+            // Reposition existing bricks based on new layout (important!)
+            bricks.forEach(brick => {
+                const c = Math.floor((brick.x - brickStartX + brickWidth/2) / (brickWidth + brickSpacing)); // Estimate original column
+                const r = Math.floor((brick.y - brickOffsetY + brickHeight/2) / (brickHeight + brickSpacing)); // Estimate original row (less reliable after shifts)
+                brick.width = brickWidth;
+                brick.height = brickHeight;
+                brick.x = brickStartX + c * (brickWidth + brickSpacing);
+                // Y position is handled by shifts, don't reset it here unless needed
+            });
+             // Reposition other elements if needed (balls, powerups, lasers) - less critical as they move
+        }
+
+        function resetBallAndPaddle() {
+            // Reset paddle state
+            paddle.width = paddle.baseWidth;
+            paddle.x = (canvasWidth - paddle.width) / 2;
+            paddle.y = canvasHeight - paddle.height - scaleValue(PADDLE_Y_OFFSET);
+            paddle.isWider = false;
+            paddle.hasLaser = false;
+            paddle.widerEndTime = 0;
+            paddle.laserEndTime = 0;
+            activePowerupType = null;
+            activePowerupTimer = 0;
+            shootButton.style.display = 'none'; // Ensure fire button is hidden
+
+
+            // Start new ball above paddle
+            const newBall = {
+                 x: paddle.x + paddle.width / 2,
+                 y: paddle.y - scaleValue(BALL_RADIUS) - 5, // Use scaled radius
+                 radius: scaleValue(BALL_RADIUS),
+                 baseSpeedX: BALL_BASE_SPEED_X * (Math.random() < 0.5 ? 1 : -1),
+                 baseSpeedY: BALL_BASE_SPEED_Y,
+                 speedMultiplier: currentSpeedMultiplier,
+                 dx: 0, dy: 0
+            };
+            // Calculate initial dx/dy based on multiplier
+            const magnitude = Math.sqrt(newBall.baseSpeedX**2 + newBall.baseSpeedY**2);
+             if (magnitude > 0) {
+                 newBall.dx = (newBall.baseSpeedX / magnitude) * Math.abs(BALL_BASE_SPEED_X * newBall.speedMultiplier);
+                 newBall.dy = (newBall.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * newBall.speedMultiplier);
+             }
+            balls = [newBall]; // Replace balls array
+        }
+
+        function createInitialBricks() {
+            bricks = [];
+            for (let r = 0; r < INITIAL_BRICK_ROWS; r++) {
+                for (let c = 0; c < BRICK_COLS; c++) {
+                    const brickX = brickStartX + c * (brickWidth + brickSpacing);
+                    const brickY = brickOffsetY + r * (brickHeight + brickSpacing);
+                    const isBomb = Math.random() < BOMB_BRICK_CHANCE * 0.5;
+                    let hits = 1;
+                    if (!isBomb) {
+                        hits = (r < INITIAL_BRICK_ROWS - 1) ? 2 : 1;
+                    }
+                    bricks.push({ x: brickX, y: brickY, width: brickWidth, height: brickHeight, visible: true, maxHits: hits, hitsLeft: hits, isBomb: isBomb });
+                }
+            }
+        }
+
+         function generateNewTopRow() {
+            const brickY = brickOffsetY - brickShiftAmount; // Position above screen
+            for (let c = 0; c < BRICK_COLS; c++) {
+                 const brickX = brickStartX + c * (brickWidth + brickSpacing);
+                 const isBomb = Math.random() < BOMB_BRICK_CHANCE;
+                 let hits = 1;
+                 if (!isBomb) {
+                     const minHits = 1;
+                     const maxHitsForLevel = Math.min(MAX_BRICK_HITS, 1 + Math.floor(gameLevel / 2.0));
+                     const hitRoll = Math.random();
+                     const difficultyFactor = Math.min(1.0, gameLevel / DIFFICULTY_SCALING_LEVEL_CAP);
+                     if (hitRoll < (0.2 + 0.6 * difficultyFactor)) {
+                         hits = maxHitsForLevel;
+                     } else {
+                         // Ensure max is at least min_hits before calculating random range
+                         const upperRandomBound = Math.max(minHits, maxHitsForLevel - 1);
+                         hits = Math.floor(Math.random() * (upperRandomBound - minHits + 1)) + minHits;
+                     }
+                     hits = Math.max(minHits, hits); // Final check for minimum
+                 }
+                 bricks.push({ x: brickX, y: brickY, width: brickWidth, height: brickHeight, visible: true, maxHits: hits, hitsLeft: hits, isBomb: isBomb });
+            }
+            // console.log(`Generated top row, Level: ${gameLevel}`); // Less verbose
+        }
+
+        function shiftBricksDown() {
+             let anyBrickTooLow = false;
+             bricks.forEach(brick => {
+                 brick.y += brickShiftAmount;
+                 if (brick.visible && brick.y + brick.height > gameOverLineY) {
+                     anyBrickTooLow = true;
+                 }
+             });
+
+             bricks = bricks.filter(brick => brick.y < canvasHeight); // Remove if top edge is off screen
+
+             if (anyBrickTooLow) {
+                 console.log("Game Over - Bricks too low");
+                 gameOver = true;
+                 // High score saving handled elsewhere
+             } else {
+                 generateNewTopRow();
+                 lastBrickShiftTime = performance.now();
+             }
+        }
+
+         function updateDifficulty() {
+            const newLevel = Math.floor(score / DIFFICULTY_SCORE_INTERVAL);
+            if (newLevel > gameLevel) {
+                gameLevel = newLevel;
+                console.log(`Difficulty Increased to Level: ${gameLevel}`);
+                const fraction = Math.min(1.0, gameLevel / DIFFICULTY_SCALING_LEVEL_CAP);
+
+                currentSpeedMultiplier = 1.0 + (MAX_SPEED_MULTIPLIER - 1.0) * fraction;
+                balls.forEach(b => {
+                    b.speedMultiplier = currentSpeedMultiplier;
+                    const magnitude = Math.sqrt(b.baseSpeedX**2 + b.baseSpeedY**2);
+                    if (magnitude > 0) {
+                        b.dx = (b.baseSpeedX / magnitude) * Math.abs(BALL_BASE_SPEED_X * b.speedMultiplier);
+                        b.dy = (b.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * b.speedMultiplier);
+                    }
+                });
+                console.log(`  Speed Multiplier: ${currentSpeedMultiplier.toFixed(2)}`);
+
+                const intervalReduction = (BRICK_SHIFT_INTERVAL_INITIAL - BRICK_SHIFT_INTERVAL_MIN) * fraction;
+                currentBrickShiftInterval = BRICK_SHIFT_INTERVAL_INITIAL - intervalReduction;
+                currentBrickShiftInterval = Math.max(currentBrickShiftInterval, BRICK_SHIFT_INTERVAL_MIN);
+                 console.log(`  Brick Shift Interval: ${currentBrickShiftInterval.toFixed(0)} ms`);
+            }
+        }
+
+        function triggerBombExplosion(centerX, centerY) {
+            const explosionRadiusSq = Math.pow(brickWidth * BOMB_RADIUS_FACTOR, 2);
+            let bricksDestroyedByBomb = 0;
+
+            bricks.forEach(brick => {
+                if (brick.visible && !brick.isBomb) {
+                    const brickCenterX = brick.x + brick.width / 2;
+                    const brickCenterY = brick.y + brick.height / 2;
+                    const dx = brickCenterX - centerX;
+                    const dy = brickCenterY - centerY;
+                    const distSq = dx * dx + dy * dy;
+
+                    if (distSq <= explosionRadiusSq) {
+                        const pointsEarned = Math.floor(10 * brick.maxHits * currentComboMultiplier);
+                        score += pointsEarned;
+                        brick.visible = false;
+                        brick.hitsLeft = 0;
+                        bricksDestroyedByBomb++;
+                    }
+                }
+            });
+
+             if (bricksDestroyedByBomb > 0) {
+                comboCount += bricksDestroyedByBomb;
+                currentComboMultiplier += COMBO_MULTIPLIER_INCREMENT * bricksDestroyedByBomb;
+                // Play break sound
+            }
+        }
+
+        function initializeGame() {
+            score = 0;
+            lives = 3;
+            gameLevel = 0;
+            gameOver = false;
+            paused = false;
+            pausedAfterLifeLoss = false;
+            comboCount = 0;
+            currentComboMultiplier = 1.0;
+            currentSpeedMultiplier = 1.0;
+            currentBrickShiftInterval = BRICK_SHIFT_INTERVAL_INITIAL;
+            activePowerupType = null;
+            activePowerupTimer = 0;
+            powerups = [];
+            lasers = [];
+
+            calculateSizes(); // Calculate sizes first
+            createInitialBricks();
+            resetBallAndPaddle(); // Creates first ball, positions paddle
+
+            lastBrickShiftTime = performance.now();
+
+            pauseOverlay.style.display = 'none';
+            gameOverOverlay.style.display = 'none';
+            lifeLostOverlay.style.display = 'none';
+
+            // Cancel previous loop if restarting
+            if (animationFrameId !== null) {
+                 cancelAnimationFrame(animationFrameId);
+            }
+            gameLoop(); // Start the loop
+        }
+
+
+        // --- Drawing Functions ---
+        function drawPaddle() {
+            ctx.fillStyle = paddle.hasLaser ? ORANGE : PADDLE_COLOR;
+            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height); // Use fillRect for simplicity
+        }
+
+        function drawBall(b) {
+            ctx.beginPath();
+            ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+            ctx.fillStyle = BALL_COLOR;
+            ctx.fill();
+        }
+
+        function drawBricks() {
+            bricks.forEach(brick => {
+                if (brick.visible) {
+                    let color = BLUE;
+                    if (brick.isBomb) {
+                        color = BOMB_COLOR;
+                    } else {
+                         const maxColorKey = Math.max(...Object.keys(BRICK_COLORS).map(Number));
+                         const colorKey = Math.min(brick.hitsLeft, maxColorKey);
+                         color = BRICK_COLORS[colorKey] || BRICK_COLORS[maxColorKey];
+                    }
+                    ctx.fillStyle = color;
+                    ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+                    ctx.strokeStyle = '#000000'; // Black border
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
+
+                    if (brick.isBomb) {
+                         ctx.fillStyle = '#000000';
+                         ctx.font = `${Math.max(8, brickHeight * 0.6)}px Arial`;
+                         ctx.textAlign = 'center';
+                         ctx.textBaseline = 'middle';
+                         ctx.fillText('B', brick.x + brick.width / 2, brick.y + brick.height / 2);
+                    }
+                }
+            });
+        }
+
+        function drawPowerups() {
+             powerups.forEach(p => {
+                 if (p.visible) {
+                     let color = '#FF0000', letter = '?'; // Red fallback
+                     if (p.type === 'WIDER') { color = POWERUP_COLORS.WIDER; letter = 'W'; }
+                     else if (p.type === 'MULTI_BALL') { color = POWERUP_COLORS.MULTI_BALL; letter = 'M'; }
+                     else if (p.type === 'LASER') { color = POWERUP_COLORS.LASER; letter = 'L'; }
+
+                     ctx.fillStyle = color;
+                     ctx.fillRect(p.x, p.y, p.size, p.size);
+                     ctx.fillStyle = '#FFFFFF'; // White letter
+                     ctx.font = `bold ${Math.max(8, p.size * 0.7)}px Arial`;
+                     ctx.textAlign = 'center';
+                     ctx.textBaseline = 'middle';
+                     ctx.fillText(letter, p.x + p.size / 2, p.y + p.size / 2 + 1); // +1 for better vertical centering
+                 }
+             });
+        }
+
+        function drawLasers() {
+             lasers.forEach(l => {
+                 if (l.visible) {
+                     ctx.fillStyle = LASER_COLOR;
+                     ctx.fillRect(l.x, l.y, l.width, l.height);
+                 }
+             });
+        }
+
+        function drawUI() {
+            scoreDisplay.textContent = `Score: ${score}`;
+            levelDisplay.textContent = `Level: ${gameLevel}`;
+            livesDisplay.textContent = `Lives: ${lives}`;
+            // Other UI elements like combo/powerup indicators would be updated here
+            // if their corresponding HTML elements were added.
+        }
+
+        // --- Update Functions ---
+        function movePaddle() {
+            if (rightPressed) {
+                paddle.x += paddle.speed;
+            } else if (leftPressed) {
+                paddle.x -= paddle.speed;
+            }
+            // Clamp paddle position
+            paddle.x = Math.max(0, Math.min(canvasWidth - paddle.width, paddle.x));
+        }
+
+        function moveBall(b) {
+            b.x += b.dx;
+            b.y += b.dy;
+
+            // Wall collisions
+            if (b.x + b.radius > canvasWidth || b.x - b.radius < 0) {
+                b.baseSpeedX *= -1;
+                const magnitude = Math.sqrt(b.baseSpeedX**2 + b.baseSpeedY**2);
+                 if (magnitude > 0) { b.dx = (b.baseSpeedX / magnitude) * Math.abs(BALL_BASE_SPEED_X * b.speedMultiplier); }
+                b.x = (b.x - b.radius < 0) ? b.radius : canvasWidth - b.radius;
+            }
+            // Top wall collision
+            if (b.y - b.radius < 0) {
+                b.baseSpeedY *= -1;
+                const magnitude = Math.sqrt(b.baseSpeedX**2 + b.baseSpeedY**2);
+                 if (magnitude > 0) { b.dy = (b.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * b.speedMultiplier); }
+                b.y = b.radius;
+            }
+            // Bottom edge check handled separately in main loop
+        }
+
+        function handleCollisions() {
+            const now = performance.now();
+
+            // Ball vs Paddle
+            balls.forEach(b => {
+                if (b.dy > 0 && // Only check if moving down
+                    b.x > paddle.x - b.radius && // Optimisation: rough horizontal check
+                    b.x < paddle.x + paddle.width + b.radius &&
+                    b.y + b.radius > paddle.y &&
+                    b.y - b.radius < paddle.y + paddle.height)
+                {
+                    // More precise collision check
+                    if (b.x + b.radius > paddle.x && b.x - b.radius < paddle.x + paddle.width) {
+                        const hitOffset = (b.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+                        b.baseSpeedY *= -1;
+                        b.baseSpeedX += hitOffset * BALL_BASE_SPEED_X * 1.2;
+                        const maxBaseX = BALL_BASE_SPEED_X * 2.0;
+                        b.baseSpeedX = Math.max(-maxBaseX, Math.min(maxBaseX, b.baseSpeedX));
+
+                        const magnitude = Math.sqrt(b.baseSpeedX**2 + b.baseSpeedY**2);
+                        if (magnitude > 0) {
+                            b.dx = (b.baseSpeedX / magnitude) * Math.abs(BALL_BASE_SPEED_X * b.speedMultiplier);
+                            b.dy = (b.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * b.speedMultiplier);
+                        }
+                        b.y = paddle.y - b.radius; // Reposition above paddle
+
+                        if (COMBO_RESET_ON_PADDLE) { comboCount = 0; currentComboMultiplier = 1.0; }
+                        // Play sound
+                    }
+                }
+            });
+
+            // Ball vs Bricks
+            balls.forEach(b => {
+                 let bouncedThisFrame = false;
+                 bricks.forEach(brick => {
+                     if (!bouncedThisFrame && brick.visible &&
+                         b.x + b.radius > brick.x && b.x - b.radius < brick.x + brick.width &&
+                         b.y + b.radius > brick.y && b.y - b.radius < brick.y + brick.height)
+                    {
+                         b.baseSpeedY *= -1; // Simple vertical bounce
+                         const magnitude = Math.sqrt(b.baseSpeedX**2 + b.baseSpeedY**2);
+                         if (magnitude > 0) { b.dy = (b.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * b.speedMultiplier); }
+
+                         if (b.dy > 0) { b.y = brick.y + brick.height + b.radius; }
+                         else { b.y = brick.y - b.radius; }
+
+                         brick.hitsLeft--;
+                         if (brick.hitsLeft <= 0) {
+                             brick.visible = false;
+                             const pointsEarned = Math.floor(10 * brick.maxHits * currentComboMultiplier);
+                             score += pointsEarned;
+                             comboCount++;
+                             currentComboMultiplier += COMBO_MULTIPLIER_INCREMENT;
+
+                             if (brick.isBomb) {
+                                 triggerBombExplosion(brick.x + brick.width / 2, brick.y + brick.height / 2);
+                             } else {
+                                if (Math.random() < POWERUP_CHANCE) {
+                                    const type = ['WIDER', 'MULTI_BALL', 'LASER'][Math.floor(Math.random() * 3)];
+                                    powerups.push({ x: brick.x + brick.width / 2 - powerupSize / 2, y: brick.y + brick.height / 2, size: powerupSize, speed: powerupSpeed, type: type, visible: true });
+                                }
+                             }
+                         } else {
+                             // Play hit sound
+                         }
+                         bouncedThisFrame = true;
+                     }
+                 });
+            });
+
+             // Laser vs Bricks
+             lasers.forEach(l => {
+                 if (!l.visible) return;
+                 bricks.forEach(brick => {
+                     if (brick.visible && l.x < brick.x + brick.width && l.x + l.width > brick.x && l.y < brick.y + brick.height && l.y + l.height > brick.y) {
+                         l.visible = false;
+                         brick.hitsLeft--;
+                         if (brick.hitsLeft <= 0) {
+                             brick.visible = false;
+                             const pointsEarned = Math.floor(10 * brick.maxHits * currentComboMultiplier);
+                             score += pointsEarned;
+                             comboCount++;
+                             currentComboMultiplier += COMBO_MULTIPLIER_INCREMENT;
+                             if (brick.isBomb) { triggerBombExplosion(brick.x + brick.width / 2, brick.y + brick.height / 2); }
+                         } else { /* Play hit sound */ }
+                         return; // Laser hits one brick only
+                     }
+                 });
+             });
+
+             // Powerup vs Paddle
+             powerups.forEach(p => {
+                 if (p.visible && p.x < paddle.x + paddle.width && p.x + p.size > paddle.x && p.y < paddle.y + paddle.height && p.y + p.size > paddle.y) {
+                     p.visible = false;
+                     // Play collect sound
+                     if (p.type === 'WIDER') {
+                         if (!paddle.isWider) { paddle.x -= (paddle.widerWidth - paddle.baseWidth) / 2; } // Adjust only if not already wide
+                         paddle.isWider = true; paddle.width = paddle.widerWidth;
+                         paddle.widerEndTime = now + POWERUP_DURATION;
+                     } else if (p.type === 'MULTI_BALL') {
+                         const baseBall = balls[0] || { x: paddle.x + paddle.width/2, y: paddle.y - 20, speedMultiplier: currentSpeedMultiplier};
+                         for (let i = 0; i < 2; i++) {
+                             const nb = { x: baseBall.x + (Math.random() - 0.5) * 20, y: baseBall.y, radius: scaleValue(BALL_RADIUS), baseSpeedX: BALL_BASE_SPEED_X * (Math.random() < 0.5 ? 1 : -1) * (0.8 + Math.random()*0.4), baseSpeedY: BALL_BASE_SPEED_Y * (0.8 + Math.random()*0.4), speedMultiplier: baseBall.speedMultiplier, dx: 0, dy: 0 };
+                             const mag = Math.sqrt(nb.baseSpeedX**2 + nb.baseSpeedY**2);
+                             if (mag > 0) { nb.dx = (nb.baseSpeedX / mag) * Math.abs(BALL_BASE_SPEED_X * nb.speedMultiplier); nb.dy = (nb.baseSpeedY / mag) * Math.abs(BALL_BASE_SPEED_Y * nb.speedMultiplier); }
+                             balls.push(nb);
+                         }
+                     } else if (p.type === 'LASER') {
+                          paddle.hasLaser = true;
+                          paddle.laserEndTime = now + LASER_DURATION;
+                          shootButton.style.display = 'block';
+                     }
+                     // Update active powerup indicator immediately
+                     updatePaddleState();
+                 }
+             });
+        }
+
+        function updatePaddleState() {
+            const now = performance.now();
+            let wasWider = paddle.isWider; // Track state before update
+
+            // Check Wider timer
+            if (paddle.isWider && now >= paddle.widerEndTime) {
+                paddle.isWider = false;
+                paddle.width = paddle.baseWidth;
+                 // Recenter only if it was wider before this check
+                 if (wasWider) paddle.x += (paddle.widerWidth - paddle.baseWidth) / 2;
+            }
+
+            // Check Laser timer
+            if (paddle.hasLaser && now >= paddle.laserEndTime) {
+                paddle.hasLaser = false;
+                 shootButton.style.display = 'none';
+            } else if (paddle.hasLaser) {
+                 shootButton.style.display = 'block'; // Ensure visible if active
+            } else {
+                 shootButton.style.display = 'none'; // Hide if inactive
+            }
+
+             // Update indicator text based on which powerup ends LAST
+             let currentActiveType = null;
+             let currentEndTime = 0;
+             if (paddle.isWider && paddle.widerEndTime > currentEndTime) {
+                 currentActiveType = 'WIDE';
+                 currentEndTime = paddle.widerEndTime;
+             }
+             if (paddle.hasLaser && paddle.laserEndTime > currentEndTime) {
+                 currentActiveType = 'LASER';
+                 currentEndTime = paddle.laserEndTime;
+             }
+             activePowerupType = currentActiveType;
+             activePowerupTimer = currentEndTime; // Store the end time of the latest powerup
+        }
+
+
+        function updateLasers() {
+             lasers.forEach(l => l.move());
+             lasers = lasers.filter(l => l.visible && l.y > -l.height); // Remove if off-screen top
+        }
+
+        function updatePowerups() {
+             powerups.forEach(p => p.move());
+             powerups = powerups.filter(p => p.visible && p.y < canvasHeight); // Remove if off-screen bottom
+        }
+
+
+        // --- Game Loop ---
+        function gameLoop(timestamp) {
+            if (gameOver) {
+                gameOverOverlay.style.display = 'flex';
+                finalScoreDisplay.textContent = `Final Score: ${score}`;
+                animationFrameId = null; // Stop loop
+                return;
+            }
+             if (paused) {
+                 pauseOverlay.style.display = 'flex';
+                 animationFrameId = requestAnimationFrame(gameLoop); // Keep requesting to allow unpause
+                 return;
+             }
+             if (pausedAfterLifeLoss) {
+                 lifeLostOverlay.style.display = 'flex';
+                 lifeLostMessage.textContent = `Life Lost! ${lives} left.`;
+                 animationFrameId = requestAnimationFrame(gameLoop); // Keep requesting to allow resume
+                 return;
+             }
+
+            pauseOverlay.style.display = 'none';
+            gameOverOverlay.style.display = 'none';
+            lifeLostOverlay.style.display = 'none';
+
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+            // --- Logic ---
+            updateDifficulty();
+            movePaddle();
+            balls.forEach(moveBall);
+            updatePaddleState(); // Must be before handleCollisions if it affects paddle size/state
+            updateLasers();
+            updatePowerups();
+            handleCollisions();
+
+             // Check Ball Loss
+             const ballsLostThisFrame = balls.filter(b => b.y - b.radius > canvasHeight);
+             if (ballsLostThisFrame.length > 0) {
+                 balls = balls.filter(b => b.y - b.radius <= canvasHeight);
+                 if (balls.length === 0) { // Lost the last ball
+                     lives--;
+                     comboCount = 0; currentComboMultiplier = 1.0;
+                     paddle.reset_position(); // Reset paddle state fully
+                     activePowerupType = null; activePowerupTimer = 0; shootButton.style.display = 'none';
+
+                     if (lives <= 0) {
+                         gameOver = true;
+                         add_high_score(score); // Use placeholder high score logic
+                     } else {
+                         pausedAfterLifeLoss = true;
+                     }
+                 }
+             }
+
+             // Check Brick Shift
+             if (performance.now() - lastBrickShiftTime >= currentBrickShiftInterval) {
+                 shiftBricksDown(); // This checks for game over from bricks
+                 if (gameOver) { // Re-check game over state after shift
+                    gameOverOverlay.style.display = 'flex';
+                    finalScoreDisplay.textContent = `Final Score: ${score}`;
+                    animationFrameId = null;
+                    return;
+                 }
+             }
+
+            // --- Drawing ---
+            drawBricks();
+            drawPaddle();
+            drawPowerups();
+            drawLasers();
+            balls.forEach(drawBall);
+            drawUI();
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Placeholder High Score Logic ---
+         let highScores = []; // Simple array for this example
+         function add_high_score(score) {
+             console.log("Attempting to add score:", score);
+             // In a real implementation, load/save from localStorage or server
+             highScores.push(score);
+             highScores.sort((a, b) => b - a); // Sort descending
+             highScores = highScores.slice(0, 5); // Keep top 5
+             console.log("High Scores:", highScores);
+         }
+         function load_high_scores() {
+             // Load from localStorage if available
+             const storedScores = localStorage.getItem('breakoutHighScores');
+             if (storedScores) {
+                 try {
+                     highScores = JSON.parse(storedScores);
+                     highScores.sort((a, b) => b - a);
+                     console.log("Loaded high scores from localStorage:", highScores);
+                 } catch (e) {
+                     console.error("Failed to parse high scores from localStorage", e);
+                     highScores = [];
+                 }
+             } else {
+                 highScores = []; // Default if nothing stored
+             }
+         }
+          function save_high_scores() {
+             try {
+                 localStorage.setItem('breakoutHighScores', JSON.stringify(highScores));
+                 console.log("Saved high scores to localStorage:", highScores);
+             } catch (e) {
+                 console.error("Failed to save high scores to localStorage", e);
+             }
+         }
+         // Make sure add_high_score calls save_high_scores
+         function add_high_score(new_score) {
+             try {
+                 int_score = parseInt(new_score); // Ensure number
+                 if (isNaN(int_score)) return; // Don't add if not a number
+                 highScores.push(int_score);
+                 highScores.sort((a, b) => b - a);
+                 highScores = highScores.slice(0, 5);
+                 save_high_scores(); // Save after modifying
+             } catch (e) {
+                  console.error("Error adding high score", e);
+             }
+         }
+
+
+        // --- Event Listeners ---
+        function handleKeyDown(e) {
+            if (gameOver) { initializeGame(); return; }
+            if (pausedAfterLifeLoss) { pausedAfterLifeLoss = false; resetBallAndPaddle(); return; }
+            if (e.key === 'p' || e.key === 'P') { paused = !paused; }
+            if (paused) { if (e.key === 'q' || e.key === 'Q') { cancelAnimationFrame(animationFrameId); alert("Game Quit. Refresh."); } return; }
+
+            if (e.key === 'Right' || e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightPressed = true;
+            else if (e.key === 'Left' || e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') leftPressed = true;
+            else if (e.key === ' ') fireLaser(); // Fire on space press
+        }
+
+        function handleKeyUp(e) {
+            if (e.key === 'Right' || e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightPressed = false;
+            else if (e.key === 'Left' || e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') leftPressed = false;
+        }
+
+         function fireLaser() {
+             const now = performance.now();
+             if (!paused && !gameOver && !pausedAfterLifeLoss && paddle.hasLaser && now - lastLaserShotTime >= LASER_COOLDOWN) {
+                 // Calculate laser positions relative to current paddle width
+                 const laserXOffset = scaleValue(5); // Offset from edge
+                 lasers.push({ x: paddle.x + laserXOffset, y: paddle.y, width: laserWidth, height: laserHeight, speed: laserSpeed, visible: true });
+                 lasers.push({ x: paddle.x + paddle.width - laserXOffset - laserWidth, y: paddle.y, width: laserWidth, height: laserHeight, speed: laserSpeed, visible: true });
+                 // Play sound
+                 lastLaserShotTime = now;
+             }
+         }
+
+        // Touch Controls
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const target = e.target;
+
+            if (gameOver) { initializeGame(); return; }
+            if (pausedAfterLifeLoss) { pausedAfterLifeLoss = false; resetBallAndPaddle(); return; }
+            // Allow pause button interaction even when paused
+            if (target === pauseButton) {
+                 paused = !paused;
+                 if (paused) pauseButton.classList.add('active');
+                 else pauseButton.classList.remove('active');
+                 return; // Don't process other buttons if pause was toggled
+            }
+            if (paused) return; // Ignore other inputs if paused
+
+            if (target === leftButton) { leftPressed = true; leftButton.classList.add('active'); }
+            else if (target === rightButton) { rightPressed = true; rightButton.classList.add('active'); }
+            else if (target === shootButton && paddle.hasLaser) { fireLaser(); shootButton.classList.add('active'); }
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            // Check classList to see which button was released (more reliable than target)
+            if (leftButton.classList.contains('active')) { leftPressed = false; leftButton.classList.remove('active'); }
+            if (rightButton.classList.contains('active')) { rightPressed = false; rightButton.classList.remove('active'); }
+            if (shootButton.classList.contains('active')) { shootButton.classList.remove('active'); }
+            // Pause button state managed in handleTouchStart
+        }
+
+        // Window Resize
+        function handleResize() {
+            console.log("Window resized");
+            // Cancel existing loop to prevent drawing glitches during resize
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null; // Mark as stopped
+            }
+            calculateSizes();
+            // Restart the loop after a short delay to allow layout to settle? Or just redraw immediately?
+            // For simplicity, let the next frame handle redraw based on new sizes.
+             if (!paused && !gameOver && !pausedAfterLifeLoss && animationFrameId === null) {
+                 animationFrameId = requestAnimationFrame(gameLoop); // Restart loop if it was running
+             } else if (paused || pausedAfterLifeLoss) {
+                 // If paused, redraw the static pause screen with new dimensions
+                 // This requires extracting drawing logic or calling parts of gameLoop conditionally
+                 // Simpler: just let the loop restart on unpause/resume
+             } else if (gameOver) {
+                  // Redraw game over screen
+                  gameOverOverlay.style.display = 'flex';
+                  finalScoreDisplay.textContent = `Final Score: ${score}`;
+             }
+        }
+
+        // --- Start ---
+        document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('resize', handleResize);
+
+        // Touch/Mouse Listeners for Buttons
+        [leftButton, rightButton, pauseButton, shootButton].forEach(button => {
+            button.addEventListener('touchstart', handleTouchStart, { passive: false });
+            button.addEventListener('touchend', handleTouchEnd, { passive: false });
+            button.addEventListener('touchcancel', handleTouchEnd, { passive: false }); // Handle cancel too
+            button.addEventListener('mousedown', (e) => { handleTouchStart({ target: button, preventDefault: e.preventDefault }); }); // Simulate touch
+            button.addEventListener('mouseup', (e) => { handleTouchEnd({ target: button, preventDefault: e.preventDefault }); }); // Simulate touch
+            button.addEventListener('mouseleave', (e) => { handleTouchEnd({ target: button, preventDefault: e.preventDefault }); }); // Handle mouse leaving button
+        });
+
+         // Listeners for Overlays
+         gameOverOverlay.addEventListener('touchstart', (e) => { e.preventDefault(); initializeGame(); }, { passive: false });
+         gameOverOverlay.addEventListener('mousedown', (e) => { e.preventDefault(); initializeGame(); });
+         lifeLostOverlay.addEventListener('touchstart', (e) => { e.preventDefault(); pausedAfterLifeLoss = false; resetBallAndPaddle(); }, { passive: false });
+         lifeLostOverlay.addEventListener('mousedown', (e) => { e.preventDefault(); pausedAfterLifeLoss = false; resetBallAndPaddle(); });
+
+        // Initial setup
+        load_high_scores(); // Load scores before initializing
+        initializeGame(); // Calculates sizes and starts the loop
+
+    </script>
+</body>
+</html>
