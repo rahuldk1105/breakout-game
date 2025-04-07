@@ -32,23 +32,22 @@
         #gameCanvas {
             background-color: #000;
             display: block;
-            /* Width and height set by JS, aspect ratio maintained */
             max-width: 100%;
-            /* max-height calculated in JS */
             border: 2px solid #444;
-            box-sizing: border-box; /* Include border in size */
+            box-sizing: border-box;
+            touch-action: none; /* Prevent browser gestures like swipe-to-refresh */
         }
 
          #controls {
             display: flex;
-            justify-content: space-between; /* Space out buttons */
-            width: 80%; /* Width relative to container */
-            max-width: 400px; /* Max width for controls */
+            justify-content: space-between;
+            width: 80%;
+            max-width: 400px;
             margin-top: 15px;
-            user-select: none; /* Prevent text selection on buttons */
-            -webkit-user-select: none; /* Safari */
-            -moz-user-select: none; /* Firefox */
-            -ms-user-select: none; /* IE */
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
         }
 
         .control-button {
@@ -56,54 +55,51 @@
             color: white;
             border: 2px solid #666;
             border-radius: 10px;
-            padding: 15px 25px; /* Generous padding for touch */
+            padding: 15px 25px;
             font-size: 24px;
             font-weight: bold;
             cursor: pointer;
             text-align: center;
-            flex-grow: 1; /* Allow buttons to grow */
-            margin: 0 10px; /* Spacing between buttons */
+            flex-grow: 1;
+            margin: 0 10px;
             transition: background-color 0.1s ease;
-            -webkit-tap-highlight-color: transparent; /* Remove blue tap highlight */
+            -webkit-tap-highlight-color: transparent;
         }
 
         .control-button:active, .control-button.active {
-             background-color: #666; /* Feedback on press */
+             background-color: #666;
         }
 
-        /* UI Info positioned relative to game-container */
         #ui-info {
             display: flex;
             justify-content: space-between;
-            width: 100%; /* Takes width of game-container */
+            width: 100%;
             padding: 5px 10px;
             box-sizing: border-box;
-            font-size: 16px; /* Base size, might adjust dynamically */
-            position: absolute; /* Position over canvas */
-            top: 10px; /* Adjust as needed */
+            font-size: 16px;
+            position: absolute;
+            top: 10px;
             left: 0;
-            pointer-events: none; /* Don't interfere with game input */
-            z-index: 5; /* Above canvas, below overlays */
+            pointer-events: none;
+            z-index: 5;
         }
          #ui-info span {
              background-color: rgba(0,0,0,0.6);
              padding: 4px 8px;
              border-radius: 4px;
-             margin: 0 5px; /* Add some spacing */
+             margin: 0 5px;
          }
-         /* Specific positioning for UI elements */
-         #score { order: 1; margin-left: auto; } /* Push score right */
+         #score { order: 1; margin-left: auto; }
          #level { order: 2; }
-         #lives { order: 3; margin-right: auto;} /* Push lives left */
+         #lives { order: 3; margin-right: auto;}
 
 
-         /* Style for messages (Game Over, Paused) */
         .message-overlay {
             position: absolute;
             top: 0;
             left: 0;
-            width: 100%; /* Cover game-container */
-            height: 100%; /* Cover game-container */
+            width: 100%;
+            height: 100%;
             background-color: rgba(0, 0, 0, 0.75);
             display: none; /* Hidden by default */
             flex-direction: column;
@@ -111,18 +107,21 @@
             align-items: center;
             color: white;
             text-align: center;
-            z-index: 10; /* Ensure it's on top */
-            font-size: 1.5em; /* Relative font size */
+            z-index: 10;
+            font-size: 1.5em;
             box-sizing: border-box;
             padding: 20px;
+            cursor: pointer; /* Make overlays clickable */
         }
         .message-overlay h2 {
             margin-bottom: 15px;
+            pointer-events: none; /* Allow clicks to pass through text */
         }
         .message-overlay p {
             font-size: 0.7em;
             margin-top: 10px;
             line-height: 1.4;
+            pointer-events: none; /* Allow clicks to pass through text */
         }
 
 
@@ -140,14 +139,14 @@
 
         <div id="controls">
             <div class="control-button" id="leftArrow">&lt;</div>
-            <div class="control-button" id="pauseButton">P</div>
+            <div class="control-button" id="pauseButton">Pause</div>
             <div class="control-button" id="shootButton" style="display: none;">FIRE</div>
             <div class="control-button" id="rightArrow">&gt;</div>
         </div>
 
         <div id="pauseOverlay" class="message-overlay">
             <h2>PAUSED</h2>
-            <p>Tap Pause Button or Press P to Resume</p>
+            <p>Tap Screen or Press P to Resume</p>
             <p>(Q to Quit - Keyboard Only)</p>
         </div>
          <div id="gameOverOverlay" class="message-overlay">
@@ -179,8 +178,6 @@
         const finalScoreDisplay = document.getElementById('finalScore');
         const lifeLostOverlay = document.getElementById('lifeLostOverlay');
         const lifeLostMessage = document.getElementById('lifeLostMessage');
-        // const comboDisplay = document.getElementById('comboDisplay'); // Uncomment if using
-        // const powerupIndicator = document.getElementById('powerupIndicator'); // Uncomment if using
 
         // --- Game State ---
         let score = 0;
@@ -189,47 +186,47 @@
         let gameOver = false;
         let paused = false;
         let pausedAfterLifeLoss = false;
-        let animationFrameId = null; // To control the game loop
+        let animationFrameId = null;
 
         // --- Dynamic Sizing ---
-        const BASE_WIDTH = 800; // Reference width for scaling calculations
-        const BASE_HEIGHT = 600; // Reference height
+        const BASE_WIDTH = 800;
+        const BASE_HEIGHT = 600;
         let scaleFactor = 1;
         let canvasWidth = BASE_WIDTH;
         let canvasHeight = BASE_HEIGHT;
 
         // --- Game Element Properties (Scaled) ---
         let paddle = { x: 0, y: 0, width: 100, baseWidth: 100, widerWidth: 140, height: 15, speed: 8, dx: 0, isWider: false, widerEndTime: 0, hasLaser: false, laserEndTime: 0 };
-        let balls = []; // Array holds all active balls { x, y, radius, dx, dy, baseSpeedX, baseSpeedY, speedMultiplier }
-        let bricks = []; // Array holds all bricks { x, y, width, height, visible, maxHits, hitsLeft, isBomb }
-        let powerups = []; // Array holds falling powerups { x, y, size, speed, type, visible }
-        let lasers = []; // Array holds active lasers { x, y, width, height, speed, visible }
+        let balls = [];
+        let bricks = [];
+        let powerups = [];
+        let lasers = [];
 
         // --- Constants (Base values, scaled later) ---
         const PADDLE_BASE_WIDTH = 100;
         const PADDLE_WIDER_WIDTH = 140;
         const PADDLE_HEIGHT = 15;
-        const PADDLE_Y_OFFSET = 20; // Offset from bottom
+        const PADDLE_Y_OFFSET = 20;
         const PADDLE_SPEED = 10;
         const BALL_RADIUS = 8;
         const BALL_BASE_SPEED_X = 4.5;
-        const BALL_BASE_SPEED_Y = -4.5; // Negative for up
+        const BALL_BASE_SPEED_Y = -4.5;
 
         const BRICK_COLS = 10;
         const BRICK_BASE_HEIGHT = 20;
-        const BRICK_SPACING_FACTOR = 0.05; // Spacing relative to brick width
+        const BRICK_SPACING_FACTOR = 0.05;
         const BRICK_TOP_OFFSET = 60;
-        let BRICK_ROWS_VISIBLE = 12; // Max rows fitting on screen approx (recalculated)
-        let brickWidth, brickHeight, brickSpacing, brickOffsetY, brickStartX; // Calculated dynamically
+        let BRICK_ROWS_VISIBLE = 12;
+        let brickWidth, brickHeight, brickSpacing, brickOffsetY, brickStartX;
 
         const INITIAL_BRICK_ROWS = 5;
-        const GAME_OVER_LINE_Y_FACTOR = 0.9; // Bricks below 90% of height = game over
+        const GAME_OVER_LINE_Y_FACTOR = 0.9;
         let gameOverLineY;
 
         // Difficulty/Endless
         const BRICK_SHIFT_INTERVAL_INITIAL = 12000;
         const BRICK_SHIFT_INTERVAL_MIN = 3500;
-        let brickShiftAmount; // Calculated
+        let brickShiftAmount;
         let currentBrickShiftInterval = BRICK_SHIFT_INTERVAL_INITIAL;
         let lastBrickShiftTime = 0;
         const DIFFICULTY_SCORE_INTERVAL = 350;
@@ -239,8 +236,8 @@
 
         // Powerups / Laser / Bomb
         const POWERUP_CHANCE = 0.18;
-        const POWERUP_SPEED_FACTOR = 0.005; // Speed relative to height
-        const POWERUP_SIZE_FACTOR = 0.03; // Size relative to width
+        const POWERUP_SPEED_FACTOR = 0.005;
+        const POWERUP_SIZE_FACTOR = 0.03;
         let powerupSpeed, powerupSize;
         const POWERUP_DURATION = 7000;
         const LASER_DURATION = 5000;
@@ -251,7 +248,7 @@
         let laserSpeed, laserWidth, laserHeight;
         let lastLaserShotTime = 0;
         const BOMB_BRICK_CHANCE = 0.05;
-        const BOMB_RADIUS_FACTOR = 1.5; // Explosion radius in brick widths
+        const BOMB_RADIUS_FACTOR = 1.5;
 
         // Combo
         const COMBO_RESET_ON_PADDLE = true;
@@ -261,31 +258,30 @@
         let activePowerupType = null;
         let activePowerupTimer = 0;
 
-        // Colors (Using CSS variables might be better, but keep simple for now)
-        const PADDLE_COLOR = '#3C3CC8'; // Blueish
-        const BALL_COLOR = '#FFFFFF'; // White
-        const BRICK_COLORS = { 1: '#67BBDE', 2: '#323296', 3: '#88D498', 4: '#F29D52', 5: '#D95763', 6: '#8B0000' }; // Blue, DBlue, Green, Orange, Red, DRed
-        const BOMB_COLOR = '#808080'; // Grey
-        const LASER_COLOR = '#00FFFF'; // Cyan
-        const POWERUP_COLORS = { WIDER: '#88D498', MULTI_BALL: '#9664C8', LASER: '#F29D52' }; // Green, Purple, Orange
+        // Colors
+        const PADDLE_COLOR = '#3C3CC8';
+        const BALL_COLOR = '#FFFFFF';
+        const BRICK_COLORS = { 1: '#67BBDE', 2: '#323296', 3: '#88D498', 4: '#F29D52', 5: '#D95763', 6: '#8B0000' };
+        const BOMB_COLOR = '#808080';
+        const LASER_COLOR = '#00FFFF';
+        const POWERUP_COLORS = { WIDER: '#88D498', MULTI_BALL: '#9664C8', LASER: '#F29D52' }; // Orange for Laser Powerup
 
         // --- Input State ---
         let rightPressed = false;
         let leftPressed = false;
-        // shootPressed flag not needed, fire on event
 
         // --- Utility Functions ---
         function scaleValue(baseValue) {
-            // Scales a value based on the reference BASE_WIDTH
-            return baseValue * scaleFactor;
+            const sf = typeof scaleFactor === 'number' && isFinite(scaleFactor) ? scaleFactor : 1;
+            return baseValue * sf;
         }
 
         // --- Game Initialization and Resizing ---
         function calculateSizes() {
             const controls = document.getElementById('controls');
-            const controlsHeight = controls ? controls.offsetHeight + 30 : 50; // Approx height + margin, fallback
-            const availableHeight = window.innerHeight - controlsHeight;
-            const availableWidth = gameContainer.clientWidth;
+            const controlsHeight = controls ? controls.offsetHeight + 30 : 50;
+            const availableHeight = Math.max(1, window.innerHeight - controlsHeight);
+            const availableWidth = Math.max(1, gameContainer.clientWidth);
 
             const windowRatio = availableWidth / availableHeight;
             const baseRatio = BASE_WIDTH / BASE_HEIGHT;
@@ -297,73 +293,66 @@
                 canvasWidth = availableWidth;
                 canvasHeight = canvasWidth / baseRatio;
             }
+             canvasWidth = Math.max(1, Math.floor(canvasWidth));
+             canvasHeight = Math.max(1, Math.floor(canvasHeight));
 
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
-            scaleFactor = canvasWidth / BASE_WIDTH; // Base scaling on width
+            scaleFactor = canvasWidth / BASE_WIDTH;
 
-            console.log(`Resized: Canvas ${canvasWidth.toFixed(0)}x${canvasHeight.toFixed(0)}, Scale: ${scaleFactor.toFixed(2)}`);
-
-            // Scale game elements
-            paddle.height = scaleValue(PADDLE_HEIGHT);
-            paddle.baseWidth = scaleValue(PADDLE_BASE_WIDTH);
-            paddle.widerWidth = scaleValue(PADDLE_WIDER_WIDTH);
+            // --- Scale game elements ---
+            paddle.height = Math.max(1, scaleValue(PADDLE_HEIGHT));
+            paddle.baseWidth = Math.max(10, scaleValue(PADDLE_BASE_WIDTH));
+            paddle.widerWidth = Math.max(15, scaleValue(PADDLE_WIDER_WIDTH));
             paddle.width = paddle.isWider ? paddle.widerWidth : paddle.baseWidth;
             paddle.y = canvasHeight - paddle.height - scaleValue(PADDLE_Y_OFFSET);
-            paddle.speed = scaleValue(PADDLE_SPEED);
+            paddle.speed = Math.max(1, scaleValue(PADDLE_SPEED));
 
-            balls.forEach(b => { // Scale existing balls radius
-                 b.radius = scaleValue(BALL_RADIUS);
-             });
+            const scaledBallRadius = Math.max(1, scaleValue(BALL_RADIUS));
+            balls.forEach(b => { b.radius = scaledBallRadius; });
 
-            brickHeight = scaleValue(BRICK_BASE_HEIGHT);
-            // Calculate width based on cols and spacing factor relative to width
-            const totalSpacing = (BRICK_COLS + 1) * (canvasWidth / BRICK_COLS * BRICK_SPACING_FACTOR); // Total spacing approx
-            brickWidth = (canvasWidth - totalSpacing) / BRICK_COLS;
-            brickSpacing = (canvasWidth - (BRICK_COLS * brickWidth)) / (BRICK_COLS + 1); // Recalculate spacing to fit exactly
+            brickHeight = Math.max(1, scaleValue(BRICK_BASE_HEIGHT));
+            const approxBrickWidth = canvasWidth > 0 ? canvasWidth / BRICK_COLS : 1;
+            const scaledSpacing = Math.max(1, approxBrickWidth * BRICK_SPACING_FACTOR);
+            brickWidth = Math.max(1, (canvasWidth - (BRICK_COLS + 1) * scaledSpacing) / BRICK_COLS);
+            brickWidth = Math.max(1, brickWidth);
+            brickSpacing = Math.max(1, (canvasWidth - BRICK_COLS * brickWidth) / (BRICK_COLS + 1));
+
             brickOffsetY = scaleValue(BRICK_TOP_OFFSET);
-            brickStartX = brickSpacing; // Start after first spacing
+            brickStartX = brickSpacing;
             brickShiftAmount = brickHeight + brickSpacing;
-            BRICK_ROWS_VISIBLE = Math.floor((canvasHeight * GAME_OVER_LINE_Y_FACTOR - brickOffsetY) / (brickHeight + brickSpacing));
-
             gameOverLineY = canvasHeight * GAME_OVER_LINE_Y_FACTOR;
 
-            powerupSpeed = canvasHeight * POWERUP_SPEED_FACTOR;
-            powerupSize = canvasWidth * POWERUP_SIZE_FACTOR;
+            powerupSpeed = Math.max(1, canvasHeight * POWERUP_SPEED_FACTOR);
+            powerupSize = Math.max(5, canvasWidth * POWERUP_SIZE_FACTOR);
 
-            laserSpeed = canvasHeight * LASER_SPEED_FACTOR;
-            laserWidth = canvasWidth * LASER_WIDTH_FACTOR;
-            laserHeight = canvasHeight * LASER_HEIGHT_FACTOR;
+            laserSpeed = Math.max(1, canvasHeight * LASER_SPEED_FACTOR);
+            laserWidth = Math.max(1, canvasWidth * LASER_WIDTH_FACTOR);
+            laserHeight = Math.max(2, canvasHeight * LASER_HEIGHT_FACTOR);
 
-            // Adjust font sizes for UI overlay
+            // Adjust font sizes
              const baseFontSize = 16;
-             const scaledFontSize = Math.max(10, Math.min(20, baseFontSize * scaleFactor * 1.1)); // Clamp font size
+             const scaledFontSize = Math.max(10, Math.min(20, baseFontSize * scaleFactor * 1.1));
              const uiSpans = document.querySelectorAll('#ui-info span');
              uiSpans.forEach(span => span.style.fontSize = `${scaledFontSize}px`);
 
-             // Scale message overlay text
-             const overlayBaseSize = 1.5; // em
+             const overlayBaseSize = 1.5;
              const scaledOverlaySize = Math.max(1, overlayBaseSize * scaleFactor);
              document.querySelectorAll('.message-overlay').forEach(overlay => {
                  overlay.style.fontSize = `${scaledOverlaySize}em`;
              });
 
             // Recalculate positions
-            paddle.x = (canvasWidth - paddle.width) / 2; // Recenter paddle
-            // Reposition existing bricks based on new layout (important!)
+            paddle.x = (canvasWidth - paddle.width) / 2;
             bricks.forEach(brick => {
-                const c = Math.floor((brick.x - brickStartX + brickWidth/2) / (brickWidth + brickSpacing)); // Estimate original column
-                const r = Math.floor((brick.y - brickOffsetY + brickHeight/2) / (brickHeight + brickSpacing)); // Estimate original row (less reliable after shifts)
-                brick.width = brickWidth;
-                brick.height = brickHeight;
-                brick.x = brickStartX + c * (brickWidth + brickSpacing);
-                // Y position is handled by shifts, don't reset it here unless needed
+                 const estCol = Math.floor((brick.x + brick.width/2 - brickStartX) / (brickWidth + brickSpacing));
+                 brick.width = brickWidth;
+                 brick.height = brickHeight;
+                 brick.x = brickStartX + estCol * (brickWidth + brickSpacing);
             });
-             // Reposition other elements if needed (balls, powerups, lasers) - less critical as they move
         }
 
         function resetBallAndPaddle() {
-            // Reset paddle state
             paddle.width = paddle.baseWidth;
             paddle.x = (canvasWidth - paddle.width) / 2;
             paddle.y = canvasHeight - paddle.height - scaleValue(PADDLE_Y_OFFSET);
@@ -373,32 +362,32 @@
             paddle.laserEndTime = 0;
             activePowerupType = null;
             activePowerupTimer = 0;
-            shootButton.style.display = 'none'; // Ensure fire button is hidden
+            shootButton.style.display = 'none';
 
-
-            // Start new ball above paddle
+            const currentBallRadius = scaleValue(BALL_RADIUS);
             const newBall = {
                  x: paddle.x + paddle.width / 2,
-                 y: paddle.y - scaleValue(BALL_RADIUS) - 5, // Use scaled radius
-                 radius: scaleValue(BALL_RADIUS),
+                 y: paddle.y - currentBallRadius - 5,
+                 radius: currentBallRadius,
                  baseSpeedX: BALL_BASE_SPEED_X * (Math.random() < 0.5 ? 1 : -1),
                  baseSpeedY: BALL_BASE_SPEED_Y,
                  speedMultiplier: currentSpeedMultiplier,
                  dx: 0, dy: 0
             };
-            // Calculate initial dx/dy based on multiplier
             const magnitude = Math.sqrt(newBall.baseSpeedX**2 + newBall.baseSpeedY**2);
              if (magnitude > 0) {
                  newBall.dx = (newBall.baseSpeedX / magnitude) * Math.abs(BALL_BASE_SPEED_X * newBall.speedMultiplier);
                  newBall.dy = (newBall.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * newBall.speedMultiplier);
              }
-            balls = [newBall]; // Replace balls array
+            balls = [newBall];
         }
 
         function createInitialBricks() {
             bricks = [];
             for (let r = 0; r < INITIAL_BRICK_ROWS; r++) {
                 for (let c = 0; c < BRICK_COLS; c++) {
+                    if (brickWidth === undefined) calculateSizes(); // Ensure sizes are calculated
+
                     const brickX = brickStartX + c * (brickWidth + brickSpacing);
                     const brickY = brickOffsetY + r * (brickHeight + brickSpacing);
                     const isBomb = Math.random() < BOMB_BRICK_CHANCE * 0.5;
@@ -412,7 +401,7 @@
         }
 
          function generateNewTopRow() {
-            const brickY = brickOffsetY - brickShiftAmount; // Position above screen
+            const brickY = brickOffsetY - brickShiftAmount;
             for (let c = 0; c < BRICK_COLS; c++) {
                  const brickX = brickStartX + c * (brickWidth + brickSpacing);
                  const isBomb = Math.random() < BOMB_BRICK_CHANCE;
@@ -425,15 +414,13 @@
                      if (hitRoll < (0.2 + 0.6 * difficultyFactor)) {
                          hits = maxHitsForLevel;
                      } else {
-                         // Ensure max is at least min_hits before calculating random range
                          const upperRandomBound = Math.max(minHits, maxHitsForLevel - 1);
                          hits = Math.floor(Math.random() * (upperRandomBound - minHits + 1)) + minHits;
                      }
-                     hits = Math.max(minHits, hits); // Final check for minimum
+                     hits = Math.max(minHits, hits);
                  }
                  bricks.push({ x: brickX, y: brickY, width: brickWidth, height: brickHeight, visible: true, maxHits: hits, hitsLeft: hits, isBomb: isBomb });
             }
-            // console.log(`Generated top row, Level: ${gameLevel}`); // Less verbose
         }
 
         function shiftBricksDown() {
@@ -445,12 +432,10 @@
                  }
              });
 
-             bricks = bricks.filter(brick => brick.y < canvasHeight); // Remove if top edge is off screen
+             bricks = bricks.filter(brick => brick.y < canvasHeight);
 
              if (anyBrickTooLow) {
-                 console.log("Game Over - Bricks too low");
                  gameOver = true;
-                 // High score saving handled elsewhere
              } else {
                  generateNewTopRow();
                  lastBrickShiftTime = performance.now();
@@ -461,7 +446,6 @@
             const newLevel = Math.floor(score / DIFFICULTY_SCORE_INTERVAL);
             if (newLevel > gameLevel) {
                 gameLevel = newLevel;
-                console.log(`Difficulty Increased to Level: ${gameLevel}`);
                 const fraction = Math.min(1.0, gameLevel / DIFFICULTY_SCALING_LEVEL_CAP);
 
                 currentSpeedMultiplier = 1.0 + (MAX_SPEED_MULTIPLIER - 1.0) * fraction;
@@ -473,12 +457,10 @@
                         b.dy = (b.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * b.speedMultiplier);
                     }
                 });
-                console.log(`  Speed Multiplier: ${currentSpeedMultiplier.toFixed(2)}`);
 
                 const intervalReduction = (BRICK_SHIFT_INTERVAL_INITIAL - BRICK_SHIFT_INTERVAL_MIN) * fraction;
                 currentBrickShiftInterval = BRICK_SHIFT_INTERVAL_INITIAL - intervalReduction;
                 currentBrickShiftInterval = Math.max(currentBrickShiftInterval, BRICK_SHIFT_INTERVAL_MIN);
-                 console.log(`  Brick Shift Interval: ${currentBrickShiftInterval.toFixed(0)} ms`);
             }
         }
 
@@ -495,11 +477,13 @@
                     const distSq = dx * dx + dy * dy;
 
                     if (distSq <= explosionRadiusSq) {
-                        const pointsEarned = Math.floor(10 * brick.maxHits * currentComboMultiplier);
-                        score += pointsEarned;
-                        brick.visible = false;
-                        brick.hitsLeft = 0;
-                        bricksDestroyedByBomb++;
+                        if (brick.hitsLeft > 0) {
+                            const pointsEarned = Math.floor(10 * brick.maxHits * currentComboMultiplier);
+                            score += pointsEarned;
+                            brick.visible = false;
+                            brick.hitsLeft = 0;
+                            bricksDestroyedByBomb++;
+                        }
                     }
                 }
             });
@@ -512,6 +496,7 @@
         }
 
         function initializeGame() {
+            // console.log("--- Initializing Game ---"); // Debug log
             score = 0;
             lives = 3;
             gameLevel = 0;
@@ -527,9 +512,9 @@
             powerups = [];
             lasers = [];
 
-            calculateSizes(); // Calculate sizes first
+            calculateSizes();
             createInitialBricks();
-            resetBallAndPaddle(); // Creates first ball, positions paddle
+            resetBallAndPaddle();
 
             lastBrickShiftTime = performance.now();
 
@@ -537,18 +522,19 @@
             gameOverOverlay.style.display = 'none';
             lifeLostOverlay.style.display = 'none';
 
-            // Cancel previous loop if restarting
             if (animationFrameId !== null) {
                  cancelAnimationFrame(animationFrameId);
             }
-            gameLoop(); // Start the loop
+            gameLoop();
+            // console.log("--- Initialization Complete --- Lives:", lives); // Debug log
         }
 
 
         // --- Drawing Functions ---
         function drawPaddle() {
-            ctx.fillStyle = paddle.hasLaser ? ORANGE : PADDLE_COLOR;
-            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height); // Use fillRect for simplicity
+            // FIX: Use defined color constant
+            ctx.fillStyle = paddle.hasLaser ? POWERUP_COLORS.LASER : PADDLE_COLOR;
+            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
         }
 
         function drawBall(b) {
@@ -561,17 +547,19 @@
         function drawBricks() {
             bricks.forEach(brick => {
                 if (brick.visible) {
-                    let color = BLUE;
+                    let color = BRICK_COLORS[1] || '#67BBDE'; // Default color fix
                     if (brick.isBomb) {
                         color = BOMB_COLOR;
                     } else {
-                         const maxColorKey = Math.max(...Object.keys(BRICK_COLORS).map(Number));
+                         const colorKeys = Object.keys(BRICK_COLORS).map(Number);
+                         const validColorKeys = colorKeys.filter(k => !isNaN(k));
+                         const maxColorKey = validColorKeys.length > 0 ? Math.max(...validColorKeys) : 1;
                          const colorKey = Math.min(brick.hitsLeft, maxColorKey);
-                         color = BRICK_COLORS[colorKey] || BRICK_COLORS[maxColorKey];
+                         color = BRICK_COLORS[colorKey] || BRICK_COLORS[maxColorKey] || '#67BBDE';
                     }
                     ctx.fillStyle = color;
                     ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
-                    ctx.strokeStyle = '#000000'; // Black border
+                    ctx.strokeStyle = '#000000';
                     ctx.lineWidth = 1;
                     ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
 
@@ -586,21 +574,22 @@
             });
         }
 
+
         function drawPowerups() {
              powerups.forEach(p => {
                  if (p.visible) {
-                     let color = '#FF0000', letter = '?'; // Red fallback
+                     let color = '#FF0000', letter = '?';
                      if (p.type === 'WIDER') { color = POWERUP_COLORS.WIDER; letter = 'W'; }
                      else if (p.type === 'MULTI_BALL') { color = POWERUP_COLORS.MULTI_BALL; letter = 'M'; }
                      else if (p.type === 'LASER') { color = POWERUP_COLORS.LASER; letter = 'L'; }
 
                      ctx.fillStyle = color;
                      ctx.fillRect(p.x, p.y, p.size, p.size);
-                     ctx.fillStyle = '#FFFFFF'; // White letter
+                     ctx.fillStyle = '#FFFFFF';
                      ctx.font = `bold ${Math.max(8, p.size * 0.7)}px Arial`;
                      ctx.textAlign = 'center';
                      ctx.textBaseline = 'middle';
-                     ctx.fillText(letter, p.x + p.size / 2, p.y + p.size / 2 + 1); // +1 for better vertical centering
+                     ctx.fillText(letter, p.x + p.size / 2, p.y + p.size / 2 + 1);
                  }
              });
         }
@@ -618,8 +607,6 @@
             scoreDisplay.textContent = `Score: ${score}`;
             levelDisplay.textContent = `Level: ${gameLevel}`;
             livesDisplay.textContent = `Lives: ${lives}`;
-            // Other UI elements like combo/powerup indicators would be updated here
-            // if their corresponding HTML elements were added.
         }
 
         // --- Update Functions ---
@@ -629,7 +616,6 @@
             } else if (leftPressed) {
                 paddle.x -= paddle.speed;
             }
-            // Clamp paddle position
             paddle.x = Math.max(0, Math.min(canvasWidth - paddle.width, paddle.x));
         }
 
@@ -637,21 +623,18 @@
             b.x += b.dx;
             b.y += b.dy;
 
-            // Wall collisions
             if (b.x + b.radius > canvasWidth || b.x - b.radius < 0) {
                 b.baseSpeedX *= -1;
                 const magnitude = Math.sqrt(b.baseSpeedX**2 + b.baseSpeedY**2);
                  if (magnitude > 0) { b.dx = (b.baseSpeedX / magnitude) * Math.abs(BALL_BASE_SPEED_X * b.speedMultiplier); }
                 b.x = (b.x - b.radius < 0) ? b.radius : canvasWidth - b.radius;
             }
-            // Top wall collision
             if (b.y - b.radius < 0) {
                 b.baseSpeedY *= -1;
                 const magnitude = Math.sqrt(b.baseSpeedX**2 + b.baseSpeedY**2);
                  if (magnitude > 0) { b.dy = (b.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * b.speedMultiplier); }
                 b.y = b.radius;
             }
-            // Bottom edge check handled separately in main loop
         }
 
         function handleCollisions() {
@@ -659,13 +642,12 @@
 
             // Ball vs Paddle
             balls.forEach(b => {
-                if (b.dy > 0 && // Only check if moving down
-                    b.x > paddle.x - b.radius && // Optimisation: rough horizontal check
+                if (b.dy > 0 &&
+                    b.x > paddle.x - b.radius &&
                     b.x < paddle.x + paddle.width + b.radius &&
                     b.y + b.radius > paddle.y &&
                     b.y - b.radius < paddle.y + paddle.height)
                 {
-                    // More precise collision check
                     if (b.x + b.radius > paddle.x && b.x - b.radius < paddle.x + paddle.width) {
                         const hitOffset = (b.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
                         b.baseSpeedY *= -1;
@@ -678,10 +660,9 @@
                             b.dx = (b.baseSpeedX / magnitude) * Math.abs(BALL_BASE_SPEED_X * b.speedMultiplier);
                             b.dy = (b.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * b.speedMultiplier);
                         }
-                        b.y = paddle.y - b.radius; // Reposition above paddle
+                        b.y = paddle.y - b.radius;
 
                         if (COMBO_RESET_ON_PADDLE) { comboCount = 0; currentComboMultiplier = 1.0; }
-                        // Play sound
                     }
                 }
             });
@@ -694,12 +675,12 @@
                          b.x + b.radius > brick.x && b.x - b.radius < brick.x + brick.width &&
                          b.y + b.radius > brick.y && b.y - b.radius < brick.y + brick.height)
                     {
-                         b.baseSpeedY *= -1; // Simple vertical bounce
+                         b.baseSpeedY *= -1;
                          const magnitude = Math.sqrt(b.baseSpeedX**2 + b.baseSpeedY**2);
                          if (magnitude > 0) { b.dy = (b.baseSpeedY / magnitude) * Math.abs(BALL_BASE_SPEED_Y * b.speedMultiplier); }
 
-                         if (b.dy > 0) { b.y = brick.y + brick.height + b.radius; }
-                         else { b.y = brick.y - b.radius; }
+                         if (b.dy > 0) { b.y = brick.y + brick.height + b.radius + 0.1; }
+                         else { b.y = brick.y - b.radius - 0.1; }
 
                          brick.hitsLeft--;
                          if (brick.hitsLeft <= 0) {
@@ -717,9 +698,7 @@
                                     powerups.push({ x: brick.x + brick.width / 2 - powerupSize / 2, y: brick.y + brick.height / 2, size: powerupSize, speed: powerupSpeed, type: type, visible: true });
                                 }
                              }
-                         } else {
-                             // Play hit sound
-                         }
+                         } else { /* Play hit sound */ }
                          bouncedThisFrame = true;
                      }
                  });
@@ -740,7 +719,7 @@
                              currentComboMultiplier += COMBO_MULTIPLIER_INCREMENT;
                              if (brick.isBomb) { triggerBombExplosion(brick.x + brick.width / 2, brick.y + brick.height / 2); }
                          } else { /* Play hit sound */ }
-                         return; // Laser hits one brick only
+                         return;
                      }
                  });
              });
@@ -749,9 +728,8 @@
              powerups.forEach(p => {
                  if (p.visible && p.x < paddle.x + paddle.width && p.x + p.size > paddle.x && p.y < paddle.y + paddle.height && p.y + p.size > paddle.y) {
                      p.visible = false;
-                     // Play collect sound
                      if (p.type === 'WIDER') {
-                         if (!paddle.isWider) { paddle.x -= (paddle.widerWidth - paddle.baseWidth) / 2; } // Adjust only if not already wide
+                         if (!paddle.isWider) { paddle.x -= (paddle.widerWidth - paddle.baseWidth) / 2; }
                          paddle.isWider = true; paddle.width = paddle.widerWidth;
                          paddle.widerEndTime = now + POWERUP_DURATION;
                      } else if (p.type === 'MULTI_BALL') {
@@ -767,35 +745,30 @@
                           paddle.laserEndTime = now + LASER_DURATION;
                           shootButton.style.display = 'block';
                      }
-                     // Update active powerup indicator immediately
-                     updatePaddleState();
+                     updatePaddleState(); // Update indicator immediately
                  }
              });
         }
 
         function updatePaddleState() {
             const now = performance.now();
-            let wasWider = paddle.isWider; // Track state before update
+            let wasWider = paddle.isWider;
 
-            // Check Wider timer
             if (paddle.isWider && now >= paddle.widerEndTime) {
                 paddle.isWider = false;
                 paddle.width = paddle.baseWidth;
-                 // Recenter only if it was wider before this check
                  if (wasWider) paddle.x += (paddle.widerWidth - paddle.baseWidth) / 2;
             }
 
-            // Check Laser timer
             if (paddle.hasLaser && now >= paddle.laserEndTime) {
                 paddle.hasLaser = false;
                  shootButton.style.display = 'none';
             } else if (paddle.hasLaser) {
-                 shootButton.style.display = 'block'; // Ensure visible if active
+                 shootButton.style.display = 'block';
             } else {
-                 shootButton.style.display = 'none'; // Hide if inactive
+                 shootButton.style.display = 'none';
             }
 
-             // Update indicator text based on which powerup ends LAST
              let currentActiveType = null;
              let currentEndTime = 0;
              if (paddle.isWider && paddle.widerEndTime > currentEndTime) {
@@ -807,18 +780,28 @@
                  currentEndTime = paddle.laserEndTime;
              }
              activePowerupType = currentActiveType;
-             activePowerupTimer = currentEndTime; // Store the end time of the latest powerup
+             activePowerupTimer = currentEndTime;
         }
 
 
         function updateLasers() {
              lasers.forEach(l => l.move());
-             lasers = lasers.filter(l => l.visible && l.y > -l.height); // Remove if off-screen top
+             lasers = lasers.filter(l => l.visible && l.y > -l.height);
         }
 
         function updatePowerups() {
-             powerups.forEach(p => p.move());
-             powerups = powerups.filter(p => p.visible && p.y < canvasHeight); // Remove if off-screen bottom
+             powerups.forEach(p => {
+                 if (p.visible) {
+                     // Directly update position here instead of calling p.move()
+                     p.y += p.speed;
+                     // Check if off-screen after moving and mark for removal
+                     if (p.y > canvasHeight) {
+                         p.visible = false;
+                     }
+                 }
+             });
+             // Filter remains the same, removing non-visible powerups
+             powerups = powerups.filter(p => p.visible);
         }
 
 
@@ -827,18 +810,18 @@
             if (gameOver) {
                 gameOverOverlay.style.display = 'flex';
                 finalScoreDisplay.textContent = `Final Score: ${score}`;
-                animationFrameId = null; // Stop loop
+                if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
                 return;
             }
              if (paused) {
                  pauseOverlay.style.display = 'flex';
-                 animationFrameId = requestAnimationFrame(gameLoop); // Keep requesting to allow unpause
+                 animationFrameId = requestAnimationFrame(gameLoop);
                  return;
              }
              if (pausedAfterLifeLoss) {
                  lifeLostOverlay.style.display = 'flex';
                  lifeLostMessage.textContent = `Life Lost! ${lives} left.`;
-                 animationFrameId = requestAnimationFrame(gameLoop); // Keep requesting to allow resume
+                 animationFrameId = requestAnimationFrame(gameLoop);
                  return;
              }
 
@@ -852,36 +835,42 @@
             updateDifficulty();
             movePaddle();
             balls.forEach(moveBall);
-            updatePaddleState(); // Must be before handleCollisions if it affects paddle size/state
+            updatePaddleState();
             updateLasers();
-            updatePowerups();
+            updatePowerups(); // Now correctly updates powerup positions
             handleCollisions();
 
              // Check Ball Loss
              const ballsLostThisFrame = balls.filter(b => b.y - b.radius > canvasHeight);
              if (ballsLostThisFrame.length > 0) {
                  balls = balls.filter(b => b.y - b.radius <= canvasHeight);
-                 if (balls.length === 0) { // Lost the last ball
+                 if (balls.length === 0) {
+                     // console.log("Last ball lost. Lives before:", lives); // Debug log
                      lives--;
+                     // console.log("Lives after:", lives); // Debug log
                      comboCount = 0; currentComboMultiplier = 1.0;
-                     paddle.reset_position(); // Reset paddle state fully
+                     // Don't reset paddle position immediately, wait for resume
                      activePowerupType = null; activePowerupTimer = 0; shootButton.style.display = 'none';
 
                      if (lives <= 0) {
+                         // console.log("Lives reached 0. Setting gameOver = true"); // Debug log
                          gameOver = true;
-                         add_high_score(score); // Use placeholder high score logic
+                         add_high_score(score);
                      } else {
                          pausedAfterLifeLoss = true;
+                         // console.log("Paused for life loss. pausedAfterLifeLoss =", pausedAfterLifeLoss); // Debug log
                      }
                  }
              }
 
              // Check Brick Shift
-             if (performance.now() - lastBrickShiftTime >= currentBrickShiftInterval) {
-                 shiftBricksDown(); // This checks for game over from bricks
-                 if (gameOver) { // Re-check game over state after shift
+             if (!gameOver && performance.now() - lastBrickShiftTime >= currentBrickShiftInterval) {
+                 shiftBricksDown();
+                 if (gameOver) {
+                    add_high_score(score);
                     gameOverOverlay.style.display = 'flex';
                     finalScoreDisplay.textContent = `Final Score: ${score}`;
+                    if (animationFrameId) cancelAnimationFrame(animationFrameId);
                     animationFrameId = null;
                     return;
                  }
@@ -895,68 +884,73 @@
             balls.forEach(drawBall);
             drawUI();
 
-            animationFrameId = requestAnimationFrame(gameLoop);
+            // --- Request Next Frame ---
+            if (!gameOver) {
+                animationFrameId = requestAnimationFrame(gameLoop);
+            } else {
+                 gameOverOverlay.style.display = 'flex';
+                 finalScoreDisplay.textContent = `Final Score: ${score}`;
+                 if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                 animationFrameId = null;
+            }
         }
 
         // --- Placeholder High Score Logic ---
-         let highScores = []; // Simple array for this example
+         let highScores = [];
          function add_high_score(score) {
-             console.log("Attempting to add score:", score);
-             // In a real implementation, load/save from localStorage or server
+             // console.log("Adding score:", score); // Debug log
              highScores.push(score);
-             highScores.sort((a, b) => b - a); // Sort descending
-             highScores = highScores.slice(0, 5); // Keep top 5
-             console.log("High Scores:", highScores);
+             highScores.sort((a, b) => b - a);
+             highScores = highScores.slice(0, 5);
+             save_high_scores();
+             // console.log("High Scores:", highScores); // Debug log
          }
          function load_high_scores() {
-             // Load from localStorage if available
              const storedScores = localStorage.getItem('breakoutHighScores');
              if (storedScores) {
                  try {
                      highScores = JSON.parse(storedScores);
                      highScores.sort((a, b) => b - a);
-                     console.log("Loaded high scores from localStorage:", highScores);
-                 } catch (e) {
-                     console.error("Failed to parse high scores from localStorage", e);
-                     highScores = [];
-                 }
-             } else {
-                 highScores = []; // Default if nothing stored
-             }
+                 } catch (e) { highScores = []; }
+             } else { highScores = []; }
+             // console.log("Loaded High Scores:", highScores); // Debug log
          }
           function save_high_scores() {
              try {
                  localStorage.setItem('breakoutHighScores', JSON.stringify(highScores));
-                 console.log("Saved high scores to localStorage:", highScores);
-             } catch (e) {
-                 console.error("Failed to save high scores to localStorage", e);
-             }
-         }
-         // Make sure add_high_score calls save_high_scores
-         function add_high_score(new_score) {
-             try {
-                 int_score = parseInt(new_score); // Ensure number
-                 if (isNaN(int_score)) return; // Don't add if not a number
-                 highScores.push(int_score);
-                 highScores.sort((a, b) => b - a);
-                 highScores = highScores.slice(0, 5);
-                 save_high_scores(); // Save after modifying
-             } catch (e) {
-                  console.error("Error adding high score", e);
-             }
+             } catch (e) { console.error("Failed to save high scores:", e); }
          }
 
 
         // --- Event Listeners ---
         function handleKeyDown(e) {
+            // console.log("Key Down:", e.key, "gameOver:", gameOver, "pausedAfterLifeLoss:", pausedAfterLifeLoss, "paused:", paused); // Debug log
             if (gameOver) { initializeGame(); return; }
-            if (pausedAfterLifeLoss) { pausedAfterLifeLoss = false; resetBallAndPaddle(); return; }
-            if (e.key === 'p' || e.key === 'P') { paused = !paused; }
-            if (paused) { if (e.key === 'q' || e.key === 'Q') { cancelAnimationFrame(animationFrameId); alert("Game Quit. Refresh."); } return; }
+            if (pausedAfterLifeLoss) {
+                // console.log("Resuming after life loss via keyboard."); // Debug log
+                pausedAfterLifeLoss = false;
+                resetBallAndPaddle(); // Respawn ball now
+                return; // Important: return after handling this state
+            }
+            if (e.key === 'p' || e.key === 'P') {
+                paused = !paused;
+                // console.log("Paused toggled via key:", paused); // Debug log
+                 if (paused) pauseButton.classList.add('active');
+                 else pauseButton.classList.remove('active');
+                 return; // Return after handling pause toggle
+            }
+            if (paused) {
+                if (e.key === 'q' || e.key === 'Q') {
+                     if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                     alert("Game Quit. Refresh.");
+                 }
+                 return; // Ignore gameplay keys if paused
+            }
 
+            // Handle gameplay keys only if not paused
             if (e.key === 'Right' || e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightPressed = true;
             else if (e.key === 'Left' || e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') leftPressed = true;
-            else if (e.key === ' ') fireLaser(); // Fire on space press
+            else if (e.key === ' ') fireLaser();
         }
 
         function handleKeyUp(e) {
@@ -967,66 +961,84 @@
          function fireLaser() {
              const now = performance.now();
              if (!paused && !gameOver && !pausedAfterLifeLoss && paddle.hasLaser && now - lastLaserShotTime >= LASER_COOLDOWN) {
-                 // Calculate laser positions relative to current paddle width
-                 const laserXOffset = scaleValue(5); // Offset from edge
+                 const laserXOffset = scaleValue(5);
                  lasers.push({ x: paddle.x + laserXOffset, y: paddle.y, width: laserWidth, height: laserHeight, speed: laserSpeed, visible: true });
                  lasers.push({ x: paddle.x + paddle.width - laserXOffset - laserWidth, y: paddle.y, width: laserWidth, height: laserHeight, speed: laserSpeed, visible: true });
-                 // Play sound
                  lastLaserShotTime = now;
+                 // Play sound
              }
          }
 
-        // Touch Controls
-        function handleTouchStart(e) {
+        // Touch/Pointer Controls
+        function handlePointerDown(e) {
             e.preventDefault();
             const target = e.target;
+            // console.log("Pointer Down Target:", target.id); // Debug log
 
             if (gameOver) { initializeGame(); return; }
-            if (pausedAfterLifeLoss) { pausedAfterLifeLoss = false; resetBallAndPaddle(); return; }
-            // Allow pause button interaction even when paused
-            if (target === pauseButton) {
-                 paused = !paused;
-                 if (paused) pauseButton.classList.add('active');
-                 else pauseButton.classList.remove('active');
-                 return; // Don't process other buttons if pause was toggled
+            if (pausedAfterLifeLoss) {
+                 // console.log("Resuming after life loss via touch/click."); // Debug log
+                 pausedAfterLifeLoss = false;
+                 resetBallAndPaddle(); // Respawn ball now
+                 return;
             }
-            if (paused) return; // Ignore other inputs if paused
+            // Allow pause button or overlay interaction when paused
+            if (paused) {
+                 if (target === pauseButton || target === pauseOverlay) {
+                     paused = false;
+                     pauseButton.classList.remove('active'); // Ensure button state matches
+                     // console.log("Unpaused via touch/click"); // Debug log
+                 }
+                 return; // Ignore other inputs when paused
+            }
 
-            if (target === leftButton) { leftPressed = true; leftButton.classList.add('active'); }
-            else if (target === rightButton) { rightPressed = true; rightButton.classList.add('active'); }
-            else if (target === shootButton && paddle.hasLaser) { fireLaser(); shootButton.classList.add('active'); }
+            // Handle gameplay buttons only if not paused
+            if (target === leftButton) { leftPressed = true; target.classList.add('active'); }
+            else if (target === rightButton) { rightPressed = true; target.classList.add('active'); }
+            else if (target === pauseButton) { // Pause the game
+                 paused = true;
+                 target.classList.add('active'); // Show button as active while paused
+                 // console.log("Paused via touch/click"); // Debug log
+            }
+            else if (target === shootButton && paddle.hasLaser) { fireLaser(); target.classList.add('active'); }
         }
 
-        function handleTouchEnd(e) {
+        function handlePointerUpOrCancel(e) {
             e.preventDefault();
-            // Check classList to see which button was released (more reliable than target)
-            if (leftButton.classList.contains('active')) { leftPressed = false; leftButton.classList.remove('active'); }
-            if (rightButton.classList.contains('active')) { rightPressed = false; rightButton.classList.remove('active'); }
-            if (shootButton.classList.contains('active')) { shootButton.classList.remove('active'); }
-            // Pause button state managed in handleTouchStart
+            // console.log("Pointer Up/Cancel"); // Debug log
+            leftPressed = false;
+            rightPressed = false;
+            leftButton.classList.remove('active');
+            rightButton.classList.remove('active');
+            shootButton.classList.remove('active');
+            // Don't change pause button state here, only on toggle
         }
 
         // Window Resize
         function handleResize() {
-            console.log("Window resized");
-            // Cancel existing loop to prevent drawing glitches during resize
+            // console.log("Window resized"); // Less verbose
             if (animationFrameId !== null) {
                 cancelAnimationFrame(animationFrameId);
-                animationFrameId = null; // Mark as stopped
+                animationFrameId = null;
             }
             calculateSizes();
-            // Restart the loop after a short delay to allow layout to settle? Or just redraw immediately?
-            // For simplicity, let the next frame handle redraw based on new sizes.
-             if (!paused && !gameOver && !pausedAfterLifeLoss && animationFrameId === null) {
-                 animationFrameId = requestAnimationFrame(gameLoop); // Restart loop if it was running
-             } else if (paused || pausedAfterLifeLoss) {
-                 // If paused, redraw the static pause screen with new dimensions
-                 // This requires extracting drawing logic or calling parts of gameLoop conditionally
-                 // Simpler: just let the loop restart on unpause/resume
-             } else if (gameOver) {
-                  // Redraw game over screen
-                  gameOverOverlay.style.display = 'flex';
-                  finalScoreDisplay.textContent = `Final Score: ${score}`;
+
+             if (!paused && !gameOver && !pausedAfterLifeLoss) {
+                 animationFrameId = requestAnimationFrame(gameLoop);
+             } else {
+                  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+                  drawBricks();
+                  drawPaddle();
+                  drawPowerups();
+                  drawLasers();
+                  balls.forEach(drawBall);
+                  drawUI();
+                  if (paused) pauseOverlay.style.display = 'flex';
+                  if (pausedAfterLifeLoss) lifeLostOverlay.style.display = 'flex';
+                  if (gameOver) {
+                      gameOverOverlay.style.display = 'flex';
+                      finalScoreDisplay.textContent = `Final Score: ${score}`;
+                  }
              }
         }
 
@@ -1035,25 +1047,20 @@
         document.addEventListener('keyup', handleKeyUp);
         window.addEventListener('resize', handleResize);
 
-        // Touch/Mouse Listeners for Buttons
-        [leftButton, rightButton, pauseButton, shootButton].forEach(button => {
-            button.addEventListener('touchstart', handleTouchStart, { passive: false });
-            button.addEventListener('touchend', handleTouchEnd, { passive: false });
-            button.addEventListener('touchcancel', handleTouchEnd, { passive: false }); // Handle cancel too
-            button.addEventListener('mousedown', (e) => { handleTouchStart({ target: button, preventDefault: e.preventDefault }); }); // Simulate touch
-            button.addEventListener('mouseup', (e) => { handleTouchEnd({ target: button, preventDefault: e.preventDefault }); }); // Simulate touch
-            button.addEventListener('mouseleave', (e) => { handleTouchEnd({ target: button, preventDefault: e.preventDefault }); }); // Handle mouse leaving button
+        [leftButton, rightButton, pauseButton, shootButton, gameOverOverlay, lifeLostOverlay, pauseOverlay].forEach(element => {
+             if (element) {
+                 element.addEventListener('pointerdown', handlePointerDown, { passive: false });
+                 if (element.classList.contains('control-button')) {
+                     element.addEventListener('pointerup', handlePointerUpOrCancel, { passive: false });
+                     element.addEventListener('pointercancel', handlePointerUpOrCancel, { passive: false });
+                     element.addEventListener('pointerleave', handlePointerUpOrCancel, { passive: false });
+                 }
+             }
         });
 
-         // Listeners for Overlays
-         gameOverOverlay.addEventListener('touchstart', (e) => { e.preventDefault(); initializeGame(); }, { passive: false });
-         gameOverOverlay.addEventListener('mousedown', (e) => { e.preventDefault(); initializeGame(); });
-         lifeLostOverlay.addEventListener('touchstart', (e) => { e.preventDefault(); pausedAfterLifeLoss = false; resetBallAndPaddle(); }, { passive: false });
-         lifeLostOverlay.addEventListener('mousedown', (e) => { e.preventDefault(); pausedAfterLifeLoss = false; resetBallAndPaddle(); });
-
-        // Initial setup
-        load_high_scores(); // Load scores before initializing
-        initializeGame(); // Calculates sizes and starts the loop
+        // --- Initial Load ---
+        load_high_scores();
+        initializeGame();
 
     </script>
 </body>
